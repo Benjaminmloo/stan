@@ -9,7 +9,8 @@ columnName = ['te', 'td', 'sa', 'da', 'sp', 'dp', 'pr', 'flg', 'fwd', 'stos', 'p
 theDate = '2016-04-11'
 internal_ip = '42.219.'
 
-normal_datafile = 'D:\\research_local_data\\april_week3_csv\\april_week3_csv\\uniq\\april.week3.csv.uniqblacklistremoved'
+#normal_datafile = 'D:\\research_local_data\\april_week3_csv\\april_week3_csv\\uniq\\april.week3.csv.uniqblacklistremoved'
+normal_datafile = "/home/bloo/Documents/jupyter_proj/april_week3_day1.csv"
 spam_datafile = 'D:\\research_local_data\\spam_april_week3_csv\\april\\week3\\spam_flows_cut.csv'
 
 working_folder = './stan_data/ugr16/'

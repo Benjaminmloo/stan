@@ -3,16 +3,19 @@ from stannetflow.artificial.datamaker import artificial_data_generator
 from stannetflow.preprocess import user_analysis, user_selection, download_ugr16, prepare_standata
 from stannetflow.evaluation.correlation import corr_plot, mse_temporal, mse_same_row
 import pandas as pd
+import matplotlib.pyplot as plt
 
 def test_artificial():
   adg = artificial_data_generator(weight_list=[0.9, 0.9])
-  df_naive = adg.sample(row_num=100)
+  df_naive = adg.sample(row_num=1000)
   X, y = adg.agg(agg=1)
 
   stan = STANSynthesizer(dim_in=2, dim_window=1)
   stan.fit(X, y)
-  samples = stan.sample(10)
-  print(samples)
+  samples = stan.sample(50)
+  samples.plot.scatter(x = 0, y = 1)
+  plt.show()
+  #print(samples)
 
 def test_ugr16(train_file, load_checkpoint=False):
   train_loader = STANCustomDataLoader(train_file, 6, 16).get_loader()
@@ -45,13 +48,17 @@ def test_ugr16(train_file, load_checkpoint=False):
 
 if __name__ == "__main__":
   # generate artificial data
+  print("start: test artificial")  
   test_artificial()
 
   # load model and generate ugr16-format netflow data
+  print("start: ugr16 w/ checkpoint")  
   test_ugr16('stan_data/ugr16_demo.csv', True)  
 
   # train and generate ugr16-format netflow data
-  test_ugr16('example_data/data_ugr16/testing_ugr.csv')
+  print("start: urg16 w/o checkpoint")  
+  #test_ugr16('example_data/data_ugr16/testing_ugr.csv')
+  test_ugr16('stan_data/ugr16_demo.csv') 
 
   # ugr16 netflow user-based analysis
   # user_analysis()

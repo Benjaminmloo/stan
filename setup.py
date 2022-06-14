@@ -23,6 +23,6 @@ setuptools.setup(
         "pandas==1.2.0",
         "scikit-learn==0.24.0",
         "matplotlib==3.3.3",
-        "pytorch==1.7.1",
+        "torch==1.7.1",
     ],
 )
