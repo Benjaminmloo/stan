@@ -365,7 +365,7 @@ class STANCustomDataLoader(object):
         """
         self.dataset = STANCustomDataset(csv_path, height, width)
         self.loader = torch.utils.data.DataLoader(dataset=self.dataset, batch_size=512, shuffle=True, \
-          num_workers=16, pin_memory=True)
+          num_workers=4, pin_memory=True)
     
     def get_loader(self):
         return self.loader
@@ -386,6 +386,7 @@ class NetflowFormatTransformer(object):
             rt.append(label_rt[i]/ipspace)
         return rt, label_rt
 
+    # rt seems to value for model label_rt seems to be human readible number
     def _port_number_interpreter(self, port_num, portspace=None):
         rt = [port_num/portspace]
 
@@ -402,6 +403,7 @@ class NetflowFormatTransformer(object):
             decode_port = 65535
         return decode_port
 
+    #todo update max values used
     def rev_transfer(self, df, this_ip=None):
         bytmax = 20.12915933105231 # df['log_byt'].max()
         pktmax = 12.83
@@ -457,13 +459,19 @@ class NetflowFormatTransformer(object):
         ipspace = 255
         portspace = 65535
         td_max = 1430
+
         b_max = 20.12915933105231
         this_ip = df.iloc[0]['this_ip']
-    
+
+        #prevent adding non subnet relevant traffic
+        if this_ip == 0:
+            return None
+
         buffer = []
         for index, row in df.iterrows():
             # each row: teT, delta_t, byt, in/out, tcp/udp/other, sa*4, da*4, sp_sig/sp_sys/sp_other, dp*3 
             line = [row['teT']/teTmax, row['teDelta']/td_max, row['log_byt']/b_max, row['log_pkt']/pktmax, row['td']/tdmax]
+
             label_line = [row['teT']/teTmax, row['teDelta']/td_max, row['log_byt']/b_max, row['log_pkt']/pktmax, row['td']/tdmax]
             # line = [row['teT']/teTmax, row['log_byt']/bytmax]
             # [out, in]
@@ -473,6 +481,8 @@ class NetflowFormatTransformer(object):
             spo_list, label_spo_list = self._port_number_interpreter(row['sp'], portspace)
             dpo_list, label_dpo_list = self._port_number_interpreter(row['dp'], portspace)
 
+            # if sender is local select out else select in
+            #also ensure that local IP is first
             if row['sa'] == this_ip:
                 #line += sip_list + dip_list
                 line += spo_list 
@@ -513,15 +523,17 @@ class STANTemporalTransformer(object):
         self.special_data = special_data
         self.X ,self.y = None, None
         f = open(output_file, "w+")
+
         f.close()
     
     def push_back(self, df, agg=1, transformer=None):
         df = df.dropna()
         if transformer:
             df = transformer.transfer(df)
-        
-        X, y = self.agg(df, agg=agg)
-        X.to_csv(self.output_file, mode='a', header=False, index=False)
+
+        if isinstance(df, pd.DataFrame):
+            X, y = self.agg(df, agg=agg)
+            X.to_csv(self.output_file, mode='a', header=False, index=False)
 
 
     def agg(self, df, agg=None):

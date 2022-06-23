@@ -25,12 +25,20 @@ def download_ugr16():
   print('Visit the following url to download april_week3.csv')  
   print('https://nesg.ugr.es/nesg-ugr16/april_week3.php')
 
-def _prepare(folder='', output='', agg=5):
-  if len(folder) and len(output):
+def _prepare(data_path='', output_file='', agg=5):
+  """
+
+  Parameters
+  ----------
+  data_path - glob path with wild cards which will include all the csv files containing data pertinent data
+  output_file - the file to save processed data
+  agg - rows to aggregate together
+  """
+  if len(output_file) and len(data_path):
     count = 0
     ntt = NetflowFormatTransformer()
-    tft = STANTemporalTransformer(folder)
-    for f in glob.glob(output):
+    tft = STANTemporalTransformer(output_file)
+    for f in glob.glob(data_path):
       print('user:', f)
       this_ip = f.split("_")[-1][:-4]
       df = pd.read_csv(f)
@@ -38,17 +46,21 @@ def _prepare(folder='', output='', agg=5):
       count += 1
     print(count)
 
-def prepare_standata(agg=5, train_folder='stan_data/day1_data', train_output='to_train.csv', 
-                      test_folder='stan_data/day2_data', test_output='to_test.csv'):
+def prepare_standata(agg=5, train_folder='stan_data/ugr16/raw_data', train_output='to_train.csv'):
+  """
+
+  Parameters
+  ----------
+  agg - rows to aggregate together
+  data_folder - folder containing unprocessed data for training the model, organised in seperate csv partition by local IP
+  train_output - path to drop output csv of training dataa
+  """
   if len(train_folder):
     print('making train for:')
-    _prepare('stan_data/'+train_output, train_folder+'/*.csv', agg=agg)
-  if len(test_folder):
-    print('making test for:')
-    _prepare('stan_data/'+test_output, test_folder+'/*.csv', agg=agg)
+    _prepare(data_path=train_folder+'**/*.csv', output_file=train_output, agg=agg)
 
 if __name__ == "__main__":
-  download_ugr16()
-  user_analysis()
-  user_selection()
+  #download_ugr16()
+  #user_analysis()
+  #user_selection()
   prepare_standata()

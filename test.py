@@ -14,7 +14,7 @@ def test_artificial():
   stan.fit(X, y)
   samples = stan.sample(50)
   samples.plot.scatter(x = 0, y = 1)
-  plt.show()
+  #plt.show()
   #print(samples)
 
 def test_ugr16(train_file, load_checkpoint=False):
@@ -34,7 +34,7 @@ def test_ugr16(train_file, load_checkpoint=False):
           )
   
   if load_checkpoint is False:
-    stan.batch_fit(train_loader, epochs=2)
+    stan.batch_fit(train_loader, epochs=10)
   else:
     stan.load_model('ep998') # checkpoint name
     # validation
@@ -43,22 +43,24 @@ def test_ugr16(train_file, load_checkpoint=False):
   ntt = NetflowFormatTransformer()
   samples = stan.time_series_sample(8640)
   df_rev = ntt.rev_transfer(samples)
+  #pd.set_option('max_columns', 20)
   print(df_rev)
   return df_rev
 
 if __name__ == "__main__":
-  # generate artificial data
-  print("start: test artificial")  
+  """#generate artificial data
+  print("start: test artificial")
   test_artificial()
-
   # load model and generate ugr16-format netflow data
-  print("start: ugr16 w/ checkpoint")  
-  test_ugr16('stan_data/ugr16_demo.csv', True)  
-
+  print("start: sample w/ checkpoint")
+  test_ugr16('stan_data/ugr16_demo.csv', True)
   # train and generate ugr16-format netflow data
-  print("start: urg16 w/o checkpoint")  
+  print("start: sample w/o checkpoint")  
   #test_ugr16('example_data/data_ugr16/testing_ugr.csv')
-  test_ugr16('stan_data/ugr16_demo.csv') 
+  test_ugr16('stan_data/ugr16_demo.csv')"""
+
+  print("start: ugr16")
+  test_ugr16('/home/ubuntu/Documents/data/stan/preprocessed_data/april_week3_day1_PREPROCESSED.csv')
 
   # ugr16 netflow user-based analysis
   # user_analysis()
@@ -70,4 +72,3 @@ if __name__ == "__main__":
   # corr_plot(plot=True, plot_axis='xy')
   # mse_temporal()
   # mse_same_row()
-  pass
