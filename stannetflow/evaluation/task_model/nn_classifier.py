@@ -59,7 +59,7 @@ class task1_classifier(object):
         loss_func = torch.nn.CrossEntropyLoss()  # this is for regression mean squared loss
         batch_size = 25600
         train = torch.utils.data.TensorDataset(x, y)
-        train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=8, pin_memory=True)
+        train_loader = torch.utils.data.DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
         for t in range(epochs):
             for step, (batch_x, batch_y) in enumerate(train_loader):

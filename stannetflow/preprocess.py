@@ -7,7 +7,6 @@ from stannetflow.analyze_functions import analyze, extract, prepare_folders, rec
 
 from stannetflow.synthesizers.stan import NetflowFormatTransformer, STANTemporalTransformer
 
-
 def user_analysis():
   analyze()
 
@@ -30,17 +29,17 @@ def _prepare(data_path='', output_file='', agg=5):
 
   Parameters
   ----------
-  data_path - glob path with wild cards which will include all the csv files containing data pertinent data
+  data_path - glob path with wild cards which will include all the csv files containing
   output_file - the file to save processed data
   agg - rows to aggregate together
   """
+
   if len(output_file) and len(data_path):
     count = 0
     ntt = NetflowFormatTransformer()
     tft = STANTemporalTransformer(output_file)
     for f in glob.glob(data_path):
-      print('user:', f)
-      this_ip = f.split("_")[-1][:-4]
+      print('user:', f.split('=')[1].split('/')[0])
       df = pd.read_csv(f)
       tft.push_back(df, agg=agg, transformer=ntt)
       count += 1
@@ -56,7 +55,6 @@ def prepare_standata(agg=5, train_folder='stan_data/ugr16/raw_data', train_outpu
   train_output - path to drop output csv of training dataa
   """
   if len(train_folder):
-    print('making train for:')
     _prepare(data_path=train_folder+'**/*.csv', output_file=train_output, agg=agg)
 
 if __name__ == "__main__":

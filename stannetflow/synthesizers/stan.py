@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -24,12 +26,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class STANSynthesizer(object):
     def __init__(self, dim_in, dim_window, discrete_columns=[], categorical_columns={},
                  execute_order = None,
-                 learning_mode='B', arch_mode='A'):
+                 learning_mode='B', arch_mode='A',
+                 data_path='./'):
         assert learning_mode in ['A', 'B'], "Unknown Mask Type"
         self.dim_in = dim_in
         self.dim_window = dim_window
         self.execute_order = execute_order
         self.cur_epoch = 0
+        self.data_path = data_path
 
         #######################################################################
         # prepare for discrete columns
@@ -37,6 +41,7 @@ class STANSynthesizer(object):
         self.discrete_columns = discrete_columns
         self.categorical_columns_dim = categorical_columns
         self.discrete_belong = {}
+
         # self.discrete_dim = {}
         for dis_col in discrete_columns:
             for sub_dis_col in dis_col:
@@ -190,7 +195,8 @@ class STANSynthesizer(object):
             writer = csv.writer(f)
             writer.writerows([['epoch','time']+sorted(self.models.keys())])
 
-        for epoch in range(epochs):
+        while self.cur_epoch < epochs:
+            print('starting epoch %d'%self.cur_epoch)
             start_time = time.time()
             for step, (batch_X, batch_y) in enumerate(train_loader):
                 minibatch = batch_X.view(-1, self.dim_window+1, self.dim_in).to(device)
@@ -207,17 +213,21 @@ class STANSynthesizer(object):
                     optimizer.step()
                     
             end_time = time.time()
-            temp = [epoch, end_time-start_time]
+            temp = [self.cur_epoch, end_time-start_time]
             for col_i in sorted(self.execute_order):
                 scheduler = self.schedulers[col_i]
                 scheduler.step()
                 temp.append(self.models[col_i].get_batch_loss())
-                self._save_model(col_i, epoch, self.models[col_i])
+                if self.cur_epoch % 5 == 0:
+                    self._save_model(col_i, self.cur_epoch)
+
                 self.models[col_i].batch_reset()
             # print(temp)
             with open(self.loss_file, 'a') as f:
                 writer = csv.writer(f)
                 writer.writerows([temp])
+
+            self.cur_epoch += 1
 
     def fit(self, X, y, epochs=100):
         # X = torch.unsqueeze(X, 0)
@@ -287,7 +297,7 @@ class STANSynthesizer(object):
                 else:
                     self._fill_variable_i(p_samp, col_i, sample_i)
                     if col_i == 1:
-                        tot_time += int(sample_i * 1430)
+                        tot_time += int(sample_i * 1336)
 
             gen_buff.append(p_samp[-1, :])
             # print('whole row', tot_time, 'at', p_samp[-1, :])
@@ -298,13 +308,25 @@ class STANSynthesizer(object):
 
         return pd.DataFrame(gen_buff.cpu().numpy())
     
-    def _save_model(self, name, epoch, model):
-        if not os.path.exists('./saved_model'):
-            os.makedirs('./saved_model')
-        if not os.path.exists('./saved_model/model_%d'%name):
-            os.makedirs('./saved_model/model_%d'%name)
-        checkpoint = './saved_model/model_%d'%name + '/ep%d.pkl'%epoch
-        torch.save(model.state_dict(), checkpoint)
+    def _save_model(self, col_i, epoch):
+        """
+        Saves all stateful aspects of the model including the model itself, optimizer and scheduler
+
+        Parameters
+        ----------
+        col_i - index for the column being saved
+        epoch - current epoch being saved for labeling
+        """
+        Path(self.data_path + 'checkpoints/model_%d'%col_i).mkdir(parents=True, exist_ok=True)
+
+
+        checkpoint = self.data_path + 'checkpoints/model_%d'%col_i + '/epoch_%d.pkl'%epoch
+
+        torch.save({'epoch': self.cur_epoch,
+                    'net_state_dict': self.models[col_i].state_dict(),
+                    'opt_state_dict': self.optimizers[col_i].state_dict() ,
+                    'sch_state_dict': self.schedulers[col_i].state_dict()
+                    }, checkpoint)
     
     def _cpu_loading(self, model, checkpoint):
         state_dict = torch.load(checkpoint, map_location=device)
@@ -314,23 +336,46 @@ class STANSynthesizer(object):
             new_state_dict[name] = v
         model.load_state_dict(new_state_dict)
 
-    def _load_model(self, name, epoch, model):
-        checkpoint = './saved_model/model_%d'%name + '/%s.pkl'%epoch
+    def _load_model(self, col_i, epoch):
+        """
+        Loads all stateful aspects of the model including the model itself, optimizer and scheduler
+
+        Parameters
+        ----------
+        col_i - index for the column being saved
+        epoch - current epoch being saved for labeling
+        """
+        chk_path = self.data_path + 'checkpoints/model_%d'%col_i + '/epoch_%d.pkl'%epoch
+
         #model.load_state_dict(torch.load(checkpoint))
         # print(name, model, epoch)
         if device.type == 'cuda':
-            model.load_state_dict(torch.load(checkpoint))
+            checkpoint = torch.load(chk_path)
+            self.cur_epoch = checkpoint['epoch']
+            self.models[col_i].load_state_dict(checkpoint['net_state_dict'])
+            self.optimizers[col_i].load_state_dict(checkpoint['opt_state_dict'])
+            self.schedulers[col_i].load_state_dict(checkpoint['sch_state_dict'])
         else:
-            self._cpu_loading(model, checkpoint)
-    
+            raise Exception('CPU LOADING NOT AVAILABLE')
+            #self._cpu_loading(model, checkpoint)
+
+
     def load_model(self, epoch):
+        """
+        Loads all the columns defined to the current model
+
+        Parameters
+        ----------
+        epoch - epoch to be loaded
+        """
         if isinstance(epoch, dict):
             for col_i in self.execute_order:
                 # print('loading', col_i, 'with checkpoint', epoch[col_i])
-                self._load_model(col_i, epoch[col_i], self.models[col_i])
+                self._load_model(col_i, epoch[col_i])
         else:
             for col_i in self.execute_order:
-                self._load_model(col_i, epoch, self.models[col_i])
+                self._load_model(col_i, epoch)
+
 
 class STANCustomDataset(Dataset):
     def __init__(self, csv_path, height, width, transform=None):
@@ -353,6 +398,7 @@ class STANCustomDataset(Dataset):
 
     def __len__(self):
         return len(self.data.index)
+
 
 class STANCustomDataLoader(object):
     def __init__(self, csv_path, height, width, transform=None):
@@ -405,26 +451,25 @@ class NetflowFormatTransformer(object):
 
     #todo update max values used
     def rev_transfer(self, df, this_ip=None):
-        bytmax = 20.12915933105231 # df['log_byt'].max()
-        pktmax = 12.83
-        tdmax = 363
-        teTmax = 23 # df['teT'].max()
-        teDeltamax = 1336 # df['teDelta'].max()
-        ipspace = 255
-        portspace = 65535
-        td_max = 1430
-        b_max = 20.12915933105231
+        byt_max = 20.12915933105231 # df['log_byt'].max()
+        pkt_max = 12.83
+        teT_max = 23 # df['teT'].max()
+        teDelta_max = 1336 # df['teDelta'].max()
+        ip_space = 255
+        port_space = 65535
+
+        td_max = 99.996
+
         if this_ip is None:
             this_ip = random.choice(['42.219.153.159', '42.219.153.16', '42.219.153.165', '42.219.153.170', '42.219.153.174', '42.219.153.179', '42.219.153.187', '42.219.153.190', '42.219.153.193', '42.219.153.198', '42.219.153.210', '42.219.153.214', '42.219.153.216', '42.219.153.220', '42.219.153.221', '42.219.153.23', '42.219.153.238', '42.219.153.241', '42.219.153.246', '42.219.153.250', '42.219.153.35', '42.219.153.36', '42.219.153.45', '42.219.153.47', '42.219.153.5', '42.219.153.53', '42.219.153.59', '42.219.153.60', '42.219.153.71', '42.219.153.75', '42.219.153.80', '42.219.153.81', '42.219.153.82', '42.219.153.83', '42.219.153.9', '42.219.154.124', '42.219.154.134', '42.219.154.145', '42.219.154.152', '42.219.154.155', '42.219.154.18', '42.219.154.181', '42.219.154.184', '42.219.154.185', '42.219.154.189', '42.219.154.191', '42.219.155.115', '42.219.155.123', '42.219.155.128', '42.219.155.132', '42.219.155.19', '42.219.155.25', '42.219.155.27', '42.219.155.30', '42.219.155.68', '42.219.155.69', '42.219.155.72', '42.219.155.86', '42.219.155.87', '42.219.155.89', '42.219.155.91', '42.219.156.188', '42.219.156.190', '42.219.156.194', '42.219.156.227', '42.219.156.237', '42.219.156.240', '42.219.157.13', '42.219.157.220', '42.219.157.246', '42.219.157.28', '42.219.158.162', '42.219.158.163', '42.219.158.169', '42.219.158.205', '42.219.158.209', '42.219.158.211', '42.219.158.217', '42.219.158.223', '42.219.158.224'])
 
         # print(df.head()) 
-        df['raw_scale_byt'] = np.exp(df[2]*b_max)
-        df['raw_scale_pkt'] = np.exp(df[3]*pktmax)
-
+        df['raw_scale_byt'] = np.exp(df[2]*byt_max)
+        df['raw_scale_pkt'] = np.exp(df[3]*pkt_max)
         buffer = []
         for index, row in df.iterrows():
-            line = [int(row[0]*24), row[1]*td_max, int(row['raw_scale_byt']), int(row['raw_scale_pkt']), row[4]*tdmax]
-            # line = [int(row[0]*24), row[1]*td_max, int(row['raw_scale_byt']*b_max), int(row['raw_scale_pkt']*pktmax), row[4]*tdmax]
+            line = [int(row[0]*24), row[1]*teDelta_max, int(row['raw_scale_byt']), int(row['raw_scale_pkt']), row[4]*td_max]
+            # line = [int(row[0]*24), row[1]*td_max, int(row['raw_scale_byt']*b_max), int(row['raw_scale_pkt']*pkt_max), row[4]*td_max]
             if row[11] == 1:
                 line.append(self.rev_port(row[5])) # sp
                 line.append(self.rev_port(row[6])) # dp
@@ -451,16 +496,15 @@ class NetflowFormatTransformer(object):
     def transfer(self, df):
         df['log_byt'] = np.log(df['byt'])
         df['log_pkt'] = np.log(df['pkt'])
-        bytmax = 20.12915933105231 # df['log_byt'].max()
-        pktmax = 12.83
-        tdmax = 363
-        teTmax = 23 # df['teT'].max()
-        teDeltamax = 1336 # df['teDelta'].max()
-        ipspace = 255
-        portspace = 65535
-        td_max = 1430
+        byt_max = 20.12915933105231 # df['log_byt'].max()
+        pkt_max = 12.83
+        teT_max = 23 # d
+        teDelta_max = 1336 # df['teDelta'].max()
+        ip_space = 255
+        port_space = 65535
 
-        b_max = 20.12915933105231
+        td_max = 99.996
+
         this_ip = df.iloc[0]['this_ip']
 
         #prevent adding non subnet relevant traffic
@@ -470,16 +514,20 @@ class NetflowFormatTransformer(object):
         buffer = []
         for index, row in df.iterrows():
             # each row: teT, delta_t, byt, in/out, tcp/udp/other, sa*4, da*4, sp_sig/sp_sys/sp_other, dp*3 
-            line = [row['teT']/teTmax, row['teDelta']/td_max, row['log_byt']/b_max, row['log_pkt']/pktmax, row['td']/tdmax]
+            line = [row['teT']/teT_max, row['teDelta']/teDelta_max, row['log_byt']/byt_max,\
+                    row['log_pkt']/pkt_max, row['td']/td_max]
 
-            label_line = [row['teT']/teTmax, row['teDelta']/td_max, row['log_byt']/b_max, row['log_pkt']/pktmax, row['td']/tdmax]
-            # line = [row['teT']/teTmax, row['log_byt']/bytmax]
+            label_line = [row['teT']/teT_max, row['teDelta']/teDelta_max, row['log_byt']/byt_max, \
+                          row['log_pkt']/pkt_max, row['td']/td_max]
+
+
+            # line = [row['teT']/teT_max, row['log_byt']/byt_max]
             # [out, in]
-            sip_list, label_sip_list = self._map_ip_str_to_int_list(row['sa'], ipspace)
-            dip_list, label_dip_list = self._map_ip_str_to_int_list(row['da'], ipspace)
-            
-            spo_list, label_spo_list = self._port_number_interpreter(row['sp'], portspace)
-            dpo_list, label_dpo_list = self._port_number_interpreter(row['dp'], portspace)
+            sip_list, label_sip_list = self._map_ip_str_to_int_list(row['sa'], ip_space)
+            dip_list, label_dip_list = self._map_ip_str_to_int_list(row['da'], ip_space)
+
+            spo_list, label_spo_list = self._port_number_interpreter(row['sp'], port_space)
+            dpo_list, label_dpo_list = self._port_number_interpreter(row['dp'], port_space)
 
             # if sender is local select out else select in
             #also ensure that local IP is first
