@@ -60,6 +60,8 @@ def test_ugr16(train_file, checkpoint=0, epochs=2, sample_duration=86400, this_i
                     df_rev.to_csv(save_path + '%s.csv' % ip)
 
         return 'complete'
+    elif this_ip is None:
+        return 'Model trained, no data generated'
     else:
         samples = stan.time_series_sample(sample_duration)
         df_rev = ntt.rev_transfer(samples, this_ip=this_ip)
