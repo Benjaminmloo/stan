@@ -1,135 +1,73 @@
-# STAN: Synthetic Network Traffic Generation using Autoregressive Neural Models
+# STAN Evaluation Script
 
-For a project overview, installation information, and detailed usage information please visit the [project homepage](https://sanghani-projects.cs.vt.edu/stan/).
+## Setup
+### Environment setup
+- instructions given are a document of the steps required to run the evaluation code as they were written
+- assumes that
+  - the host the model will be un on is a remote linux machine with anaconda already installed
+    - if this is not the case take a look at the file structure defined in the first cells of big_data_prep.ipynb and stan evaluation.ipynb to ensure that the paths specified are addressable
+  - the host being used to access the remote machine is running windows
 
-* Homepage: https://sanghani-projects.cs.vt.edu/stan/
-* Documentation: https://docs.google.com/document/d/1haSCXQRti21X08B9otwk4nVeB_zRoaKYFGoGXFvP3kc/edit?usp=sharing
-* Repository: https://github.com/ShengzheXu/stan
+### Downloading the necessary files 
+- clone the repo to the target host you plan to run the model on 
+- setup the conda environment
+  - definitions are stored in 'project root/conda' provided are a yaml definition useable if the device being used has internet access 
+    - Use following command to install necessary libraries from the yaml file
+    - conda stan create -f stan.yml
+  - the folder contains all the library files required and only needs to be copied into '~/anaconda3/envs/'
+  - download the csv for week 3 of may of the UGR16 data set the link to the page ugr website is here
+    - https://nesg.ugr.es/nesg-ugr16/may_week3.php#INI
+  - Extract the csv from the archive
+    - tar -xf april_week3_csv.tar.gz
 
-## Overview
+### Setup jupyter notebook
+jupyter notebook needs to be run on the target host to execute the evaluation scripts
 
-Implementation of our submitting paper Network Traffic Data Generation usingAutoregressive Neural Models.
+- if there is no firewall restriction, and you can freely access the notebook server over any specified port ignore the steps up too running jupyter
+  - download and install putty
+    - https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+  - run putty
+  - On the session tab 
+    - specify the IP address of the server 
+    - ensure ssh connection type is selected
+  - on the connection -> data tab
+    - specify username
+  - on the connection -> SSH -> Auth tab
+    - enter the path for the '.ppk' file containing the ssh key (if you have a .pem file it needs to be converted to '.ppk')
+      - If required create a ppk from an ssh key saved in a '.pem' file
+        - run PuTTYgen which should be installed with putty
+        - Under the 'Conversions' tab click 'Import key' and select your '.pem' file
+          - You can now enter a passphrase for using the key, this requires you to reenter the passphrase whenever you try to access the key
+        - With the key imported click 'Save private key'
+  - on the Connection -> SSH -> Tunnels tab
+    - Here we will set a port from the host to the local machine to forward
+      - the source port should be the port you would like the jupyter notebook server to be on, I used 8889
+      - the destination is the local address the port will be made available on your local host, I used localhost:8889
+      - ensure you click the add button to save the portforward configuration
+  - if you are planning on connecting to the server again be sure to save session configuration on the 'Session' tab before opening
+  - with the session configured click you can now click the 'Open' button
+  - enter the ppk key if previously specified
+  - This connection now gives you command line access to the server and tunnels a port through SSH  to your local machine
 
-STAN is an autoregressive data synthesizer that can generate synthetic time-series multi-variable data.
-A flexible architecture supports to generate multi-variable data with any combination of continuous & discrete attributes. Tool document is [[here]](https://docs.google.com/document/d/1haSCXQRti21X08B9otwk4nVeB_zRoaKYFGoGXFvP3kc/edit?usp=sharing).
+ 
+- run jupyter notebook in the folder containing this repo
+  - cd ~/git/stan
+  - jupyter notebook --no-browser --port 8889
+    - the options set the port the notebook will be run on and ensure jupyter doesn't try to locally start a browser
+  - open big_data_prep.ipynb and stan_evaluation.ipynb
+  - ensure that jupyter is using conda stan environment
 
-- **Dependency capturing**: STAN learns dependency in a time-window context rectangular,
-  including both temporal dependency and attribute dependency.
-- **Network structure**: STAN uses CNN to extract dependent context features, mixture density layers to predict continuous attributes,
-  and softmax layers to predict discrete attributes.
-- **Application dataset**: UGR'16: A New Dataset for the Evaluation of Cyclostationarity-Based Network IDSs [[link]](https://nesg.ugr.es/nesg-ugr16/)
+## Running the Model
+Prerequisite files should now be in place, the environment setup, and access to jupyter notebook  granted
 
-<!-- ![pipline](documents/stan_overview.png) -->
-<center>
-<img src="documents/stan_overview.png" width="250">
-</center>
-
-
-## STAN Structure
+- run the first cell in big_data_prep.ipynb to setup the initial folder
+  - copy the extracted csv 'april.week3.csv.uniqblacklistremoved' to the path specified by the variable 'large_data_file'
+  - run the rest of the cells in big_data_prep.ipynb
 
 
-<center>
-<img src="documents/stan_arch.png" width="400">
-</center>
-<!-- ![arch](documents/stan_arch.png) -->
-
-
-## Installation
-
-Download source code by 
-
-`pip install stannetflow`
-
-Using STAN vis Docker
-
-Build a Docker image with STAN CLI:
-```
-cd ./make_nfattacker_docker
-docker build -f ./nfattacker2.0 -t nfattacker:v2.0 ./
-```
-
-After build finished, run the container
-
-```
-docker run --rm -it --name nfattacker -v $(pwd):/workspace nfattacker:v2.0 bash
-```
-
-## Play with model
-
-**Data Format**
-
-**STAN** expects the input data to be a table given as either a `numpy.ndarray` or a
-`pandas.DataFrame` object with two types of columns:
-
-* **Continuous Columns**: Columns that contain numerical values and which can take any value.
-* **Discrete columns**: Columns that only contain a finite number of possible values, wether
-these are string values or not.
-
-Standard **Tabular (Simulated) data** with number-based sampler.
-```python
-from stannetflow import STANSynthesizer
-from stannetflow.artificial.datamaker import artificial_data_generator
-
-def test_artificial():
-  adg = artificial_data_generator(weight_list=[0.9, 0.9])
-  df_naive = adg.sample(row_num=100)
-  X, y = adg.agg(agg=1)
-
-  stan = STANSynthesizer(dim_in=2, dim_window=1)
-  stan.fit(X, y)
-  samples = stan.sample(10)
-  print(samples)
-```
-**Netflow data** with continuous/discrete/categorical columns settings and condition-based sampler. (with delta time generation and target time length condition.) Discrete and categorical columns can be explicitly set to improve the modeling performance.
-Instead of using `.fit()` and `.sample()`, for large dataset use `.batch_fit()` and `.time_series_sample()`. In addition, for the *Netflow* data, we need `NetworkTrafficTransformer().rev_transfer()` to support translating the generated model output back to the real *Netflow* form.
-
-```python
-from stannetflow import STANSynthesizer, STANCustomDataLoader, NetflowFormatTransformer
-
-def test_ugr16(train_file, load_checkpoint=False):
-  train_loader = STANCustomDataLoader(train_file, 6, 16).get_loader()
-  ugr16_n_col, ugr16_n_agg, ugr16_arch_mode = 16, 5, 'B'
-  # index of the columns that are discrete (in one-hot groups), categorical (number of types)
-  # or any order if wanted
-  ugr16_discrete_columns = [[11,12], [13, 14, 15]]
-  ugr16_categorical_columns = {5:1670, 6:1670, 7:256, 8:256, 9:256, 10:256}
-  ugr16_execute_order = [0,1,13,11,5,6,7,8,9,10,3,2,4]
-
-  stan = STANSynthesizer(dim_in=ugr16_n_col, dim_window=ugr16_n_agg, 
-          discrete_columns=ugr16_discrete_columns,
-          categorical_columns=ugr16_categorical_columns,
-          execute_order=ugr16_execute_order,
-          arch_mode=ugr16_arch_mode
-          )
-  
-  if load_checkpoint is False:
-    stan.batch_fit(train_loader, epochs=2)
-  else:
-    stan.load_model('ep998') # checkpoint name
-    # validation
-    # stan.validate_loss(test_loader, loaded_ep='ep998')
-
-  ntt = NetflowFormatTransformer()
-  samples = stan.time_series_sample(864)
-  df_rev = ntt.rev_transfer(samples)
-  print(df_rev)
-  return df_rev
-```
-## Example data making and model training cases
-
-```
-python test.py
-```
-
-## Citations
-
-```bibtex
-@inproceedings{xu2021stan,
-  title={STAN: Synthetic Network Traffic Generation with Generative Neural Models},
-  author={Xu, Shengzhe and Marwah, Manish and Arlitt, Martin and Ramakrishnan, Naren},
-  booktitle={International Workshop on Deployable Machine Learning for Security Defense},
-  pages={3--29},
-  year={2021},
-  organization={Springer}
-}
-```
+- run the first two cell of stan_evaluation.ipynb 
+  - If you want to use old checkpoints, now is the time to copy them into the folder specified by the contents of 'stan_path' + "checkpoints/"
+    - by default the path is "/home/ubuntu/Documents/data/stan/checkpoints"
+  - Run the rest of cells seuqentially
+  - after training there are two sets of cells, ones which generate and analyze a single assets worth of data and those which work with 100 assets as the STAN authors did
+  - only one set of these needs to be run to save on time, but they can be run together

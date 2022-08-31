@@ -23,12 +23,27 @@ def test_artificial():
 
 
 def test_ugr16(train_file, checkpoint=0, epochs=2, sample_duration=86400, this_ip=None, model_path='./', save_path=None):
+    """
+
+    @param train_file: path to the file containing preprocessed widnowed data
+    @param checkpoint: check point to load
+    @param epochs: epoch number to stop training at, if epochs == 0 forgo training and just load the model and start generating data
+    @param sample_duration: desired sample length of time in seconds
+    @param this_ip: ip addressse(s) to create data for if this is a string it will only create data for that one asset, if it is a list of strings it will generate data for all specified assets
+    @param model_path: Path to parent of the checkpoint folder where the model will load and save from
+    @param save_path: Path to folder where log data for individual assets will be saved as a csv set to 'none' if you don't want to save data to file
+    @return: A string indicating the result or a dataframe containing synthesized data
+    """
     train_loader = STANCustomDataLoader(train_file, 6, 16).get_loader()
     ugr16_n_col, ugr16_n_agg, ugr16_arch_mode = 16, 5, 'B'
-    # index of the columns that are discrete (in one-hot groups), categorical (number of types)
-    # or any order if wanted
+    # index of the columns that are discrete (in one-hot groups)
+    # given as a list of columns that are a part of each one-hot group
+    # 11, 12 are for in coming and outgoing
+    # 13, 14, 15 are transfer protocol TCP, UDP, other respectively
     ugr16_discrete_columns = [[11, 12], [13, 14, 15]]
+    #categorical here means whole numbers encoded up to the specified limit (column:max value)
     ugr16_categorical_columns = {5: 1670, 6: 1670, 7: 256, 8: 256, 9: 256, 10: 256}
+    #order that the each attribute's model will be trained
     ugr16_execute_order = [0, 1, 13, 11, 5, 6, 7, 8, 9, 10, 3, 2, 4]
 
     stan = STANSynthesizer(dim_in=ugr16_n_col, dim_window=ugr16_n_agg,
@@ -53,6 +68,8 @@ def test_ugr16(train_file, checkpoint=0, epochs=2, sample_duration=86400, this_i
     print('synthesizing asset samples')
     if type(this_ip) is list:
         for ip in tqdm(this_ip):
+            #skip any assets that have already been generated
+            #enables resuming synthesis
             if not exists(save_path + '%s.csv' % ip):
                 samples = stan.time_series_sample(sample_duration)
                 df_rev = ntt.rev_transfer(samples, this_ip=ip)
@@ -69,7 +86,7 @@ def test_ugr16(train_file, checkpoint=0, epochs=2, sample_duration=86400, this_i
             df_rev.to_csv(save_path + '%s.csv' % this_ip)
         return df_rev
 
-    return 'ERROR?'
+    return 'ERROR'
 
 
 if __name__ == "__main__":

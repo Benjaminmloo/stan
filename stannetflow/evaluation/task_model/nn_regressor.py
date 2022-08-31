@@ -46,7 +46,7 @@ class task2_regressor(object):
         #train_loader = data_utils.DataLoader(dataset = train_tensor, batch_size = batch_size, shuffle = True)
         x = torch.from_numpy(x).float().to(device)
         y = torch.from_numpy(train_y.values).float().reshape(-1, 1).to(device)
-        optimizer = torch.optim.SGD(self.net.parameters(), lr=0.2)
+        optimizer = torch.optim.SGD(self.net.parameters(), lr=0.001)
         loss_func = torch.nn.MSELoss()  # this is for regression mean squared loss
 
         for t in range(epochs):

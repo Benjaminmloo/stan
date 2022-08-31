@@ -28,6 +28,17 @@ class STANSynthesizer(object):
                  execute_order = None,
                  learning_mode='B', arch_mode='A',
                  data_path='./'):
+        """
+
+        @param dim_in: number of columns the input data has
+        @param dim_window: number of entries per window
+        @param discrete_columns: list of columns belonging to one hot groups
+        @param categorical_columns: list of 'categorical columns
+        @param execute_order: the order the model will train each column in
+        @param learning_mode: The 'mode', 'A' includes current row 'B' mode masks out the values on the current row from the window
+        @param arch_mode: sets the 'mode' for the encoder architecture selecting 'A' will define it is a none, any thing else sets the architecture defined in the paper
+        @param data_path: the path to a 'checkpoints' folder where the model will attempt to save and load checkpoints from
+        """
         assert learning_mode in ['A', 'B'], "Unknown Mask Type"
         self.dim_in = dim_in
         self.dim_window = dim_window
@@ -449,7 +460,6 @@ class NetflowFormatTransformer(object):
             decode_port = 65535
         return decode_port
 
-    #todo update max values used
     def rev_transfer(self, df, this_ip=None):
         byt_max = 20.12915933105231 # df['log_byt'].max()
         pkt_max = 12.83
